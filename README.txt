@@ -41,5 +41,5 @@ Notes:
 * if you have DNS problems, try sending to an IP address
 * it always uses UDP as the transport
 * it binds to a fixed source port defined in the code
-
+* reSIProcate logging doesn't go to the Android logcat tool yet
 
