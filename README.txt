@@ -6,16 +6,30 @@ You must have the Android SDK and the NDK
 You must have already built the reSIProcate libs for Android, use
 build/android-custom-ndk script from the reSIProcate tree.
 
+1. Checkout from git:
 
-1. Compile the Java class files
+      git clone https://github.com/resiprocate/android-demo-message.git
+      cd android-demo-message
 
-2. Run the build-jni.sh
+2. Create transient files:
+
+      android update project -p . -t android-14
+      mkdir gen
+
+3. Compile the Java class files
+
+   * You can compile with ant or by importing the project into Eclipse
+
+4. Run build-jni.sh
 
    * the shared objects should now be under the libs directory
    * if you are using Eclipse, press F5 to detect the new files
 
-3. Build an APK file (e.g. use Export Android Application in Eclipse)
+5. Build an APK file (e.g. use Export Android Application in Eclipse)
 
+6. Deploy the APK file to a phone,
+
+   adb install BasicMessage.apk
 
 Now you have an app that you can run on Android
 
