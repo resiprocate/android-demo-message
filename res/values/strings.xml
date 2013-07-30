@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">Basic Message</string>
+    <string name="action_settings">Settings</string>
+    <string name="recipient">Recipient</string>
+    <string name="send">Send</string>
+    <string name="msg_text">Message body:</string>
+
+</resources>
