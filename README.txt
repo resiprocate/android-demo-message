@@ -1,5 +1,6 @@
 
-
+This is a basic Android app demonstrating how to use reSIProcate on
+Android.  It sends a text message using the SIP MESSAGE method.
 
 You must have the Android SDK and the NDK
 
@@ -42,4 +43,9 @@ Notes:
 * it always uses UDP as the transport
 * it binds to a fixed source port defined in the code
 * reSIProcate logging doesn't go to the Android logcat tool yet
+
+http://www.resiprocate.org
+
+Copyright (C) 2013 Daniel Pocock
+http://danielpocock.com  <daniel@pocock.com.au>
 
