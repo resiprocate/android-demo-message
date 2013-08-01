@@ -1,4 +1,5 @@
 
+#include "rutil/AndroidLogger.hxx"
 #include "rutil/Log.hxx"
 #include "rutil/Logger.hxx"
 #include "rutil/Subsystem.hxx"
@@ -63,7 +64,8 @@ private:
 
 int send_message(int argc, const char *argv[], const char* body)
 {
-   Log::initialize(Log::Cout, Log::Info, argv[0]);
+   AndroidLogger alog;
+   Log::initialize(Log::Cout, Log::Stack, argv[0], alog);
 
    if( (argc < 6) || (argc > 7) ) {
       ErrLog(<< "usage: " << argv[0] << " sip:from user passwd realm sip:to [port]\n");
