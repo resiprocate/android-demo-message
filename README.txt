@@ -38,11 +38,14 @@ Notes:
 * the recipient field must include the sip: prefix
 * sender address is hard coded
 * the stack is reset after each message
-* can't receive messages
+* can't receive messages yet
+* discovery of DNS servers from system properties net.dns1 and net.dns2
 * if you have DNS problems, try sending to an IP address
 * it always uses UDP as the transport
-* it binds to a fixed source port defined in the code
-* reSIProcate logging doesn't go to the Android logcat tool yet
+* it binds to a fixed source port defined in the code, hopefully
+  this won't clash with a port in use by any other app
+* reSIProcate's logging messages are logged to the Android
+  logging facility and they can be monitoring with logcat
 
 http://www.resiprocate.org
 
