@@ -12,7 +12,8 @@ cd jni
 # method prototypes in the Java code:
 
 javah -jni -classpath ../bin/classes \
-  org.resiprocate.android.basicmessage.MessageSender
+  org.resiprocate.android.basicmessage.MessageSender \
+  org.resiprocate.android.basicmessage.SipStack
 
 ${NDK_HOME}/ndk-build
 

@@ -26,11 +26,45 @@
 #include <sstream>
 
 #include "org_resiprocate_android_basicmessage_MessageSender.h"
+#include "org_resiprocate_android_basicmessage_SipStack.h"
 
 using namespace std;
 using namespace resip;
 
 #define RESIPROCATE_SUBSYSTEM Subsystem::TEST
+
+class RegListener : public ClientRegistrationHandler {
+public:
+        RegListener() : _registered(false) {};
+        bool isRegistered() { return _registered; };
+
+        virtual void onSuccess(ClientRegistrationHandle, const SipMessage& response)
+    {
+        cout << "client registered\n";
+            _registered = true;
+    }
+        virtual void onRemoved(ClientRegistrationHandle, const SipMessage& response)
+    {
+        cout << "client regListener::onRemoved\n";
+            exit(-1);
+    }
+        virtual void onFailure(ClientRegistrationHandle, const SipMessage& response)
+    {
+        cout << "client regListener::onFailure\n";
+            exit(-1);
+    }
+    virtual int onRequestRetry(ClientRegistrationHandle, int retrySeconds, const SipMessage& response)
+    {
+        cout << "client regListener::onRequestRetry\n";
+            exit(-1);
+        return -1;
+    }
+
+protected:
+        bool _registered;
+
+};
+
 
 class ClientMessageHandler : public ClientPagerMessageHandler {
 public:
@@ -61,6 +95,22 @@ private:
    bool finished;
    bool successful;
 };
+
+class ServerMessageHandler : public ServerPagerMessageHandler
+{
+public:
+        ServerMessageHandler() {};
+        virtual void onMessageArrived(ServerPagerMessageHandle handle, const SipMessage& message)
+    {
+
+            SharedPtr<SipMessage> ok = handle->accept();
+            handle->send(ok);
+
+            Contents *body = message.getContents();
+            InfoLog(<< "Got a message: " << *body);
+    }
+};
+
 
 int send_message(int argc, const char *argv[], const char* body)
 {
@@ -173,6 +223,86 @@ JNIEXPORT void JNICALL Java_org_resiprocate_android_basicmessage_MessageSender_s
   env->ReleaseStringUTFChars(recipient, _recipient);
   env->ReleaseStringUTFChars(body, _body);
 }
+
+static SipStack *clientStack;
+static DialogUsageManager *clientDum;
+
+/*
+ * Class:     org_resiprocate_android_basicmessage_SipStack
+ * Method:    init
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_org_resiprocate_android_basicmessage_SipStack_init
+  (JNIEnv *env, jobject jthis, jstring sipUser, jstring realm, jstring user, jstring password)
+{
+   const char *_sipUser = env->GetStringUTFChars(sipUser, 0);
+   const char *_realm = env->GetStringUTFChars(realm, 0);
+   const char *_user = env->GetStringUTFChars(user, 0);
+   const char *_password = env->GetStringUTFChars(password, 0);
+
+   AndroidLogger alog;
+   Log::initialize(Log::Cout, Log::Stack, "SIP", alog);
+   
+   RegListener client;
+   SharedPtr<MasterProfile> profile(new MasterProfile);
+   auto_ptr<ClientAuthManager> clientAuth(new ClientAuthManager());
+
+   clientStack = new SipStack();
+   clientDum = new DialogUsageManager(*clientStack);
+   clientDum->addTransport(TCP, 5065);
+   clientDum->setMasterProfile(profile);
+   
+   clientDum->setClientRegistrationHandler(&client);
+
+   clientDum->setClientAuthManager(clientAuth);
+   clientDum->getMasterProfile()->setDefaultRegistrationTime(70);
+   clientDum->getMasterProfile()->addSupportedMethod(MESSAGE);
+   clientDum->getMasterProfile()->addSupportedMimeType(MESSAGE, Mime("text", "plain"));
+   
+   ClientMessageHandler *cmh = new ClientMessageHandler();
+   clientDum->setClientPagerMessageHandler(cmh);
+   
+   ServerMessageHandler *smh = new ServerMessageHandler();
+   clientDum->setServerPagerMessageHandler(smh);
+   
+   NameAddr naFrom(_sipUser);
+   profile->setDefaultFrom(naFrom);
+   profile->setDigestCredential(_realm, _user, _password);
+   
+   SharedPtr<SipMessage> regMessage = clientDum->makeRegistration(naFrom);
+   clientDum->send( regMessage );
+   
+   env->ReleaseStringUTFChars(sipUser, _sipUser);
+   env->ReleaseStringUTFChars(realm, _realm);
+   env->ReleaseStringUTFChars(user, _user);
+   env->ReleaseStringUTFChars(password, _password);
+
+}
+
+/*
+ * Class:     org_resiprocate_android_basicmessage_SipStack
+ * Method:    handleEvents
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_org_resiprocate_android_basicmessage_SipStack_handleEvents
+  (JNIEnv *, jobject)
+{
+   clientStack->process(10);
+   while(clientDum->process());
+}
+
+/*
+ * Class:     org_resiprocate_android_basicmessage_SipStack
+ * Method:    done
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_org_resiprocate_android_basicmessage_SipStack_done
+  (JNIEnv *, jobject)
+{
+   // FIXME: should destroy the stack here
+}
+
+
 #ifdef __cplusplus
 }
 #endif

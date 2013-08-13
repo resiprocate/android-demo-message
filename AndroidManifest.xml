@@ -24,6 +24,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service
+      		android:name=".SipService"
+      		android:process=":remote">
+      		<intent-filter>
+        		<action	android:name="org.resiprocate.android.basicmessage.SipService" />
+      		</intent-filter>
+    	</service>
     </application>
 
 </manifest>
