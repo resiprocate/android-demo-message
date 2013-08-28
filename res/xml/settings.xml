@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    android:title="Settings" >
+
+    <EditTextPreference
+        android:defaultValue=""
+        android:inputType="text"
+        android:key="uri"
+        android:persistent="true"
+        android:summary="Your SIP address"
+        android:title="SIP address" >
+    </EditTextPreference>
+    
+    <EditTextPreference
+        android:defaultValue=""
+        android:inputType="text"
+        android:key="realm"
+        android:persistent="true"
+        android:summary="Your realm"
+        android:title="Realm" >
+    </EditTextPreference>
+    
+    <EditTextPreference
+        android:defaultValue=""
+        android:inputType="text"
+        android:key="user"
+        android:persistent="true"
+        android:summary="Your authentication username"
+        android:title="Auth User" >
+    </EditTextPreference>
+    
+    <EditTextPreference
+        android:defaultValue=""
+        android:inputType="textPassword"
+        android:key="password"
+        android:persistent="true"
+        android:summary="Your SIP password"
+        android:title="Password" >
+    </EditTextPreference>
+
+</PreferenceScreen>

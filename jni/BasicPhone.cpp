@@ -25,13 +25,17 @@
 #include <string>
 #include <sstream>
 
-#include "org_resiprocate_android_basicmessage_MessageSender.h"
 #include "org_resiprocate_android_basicmessage_SipStack.h"
 
 using namespace std;
 using namespace resip;
 
 #define RESIPROCATE_SUBSYSTEM Subsystem::TEST
+
+#define DEFAULT_REGISTRATION_EXPIRY 600
+
+static SipStack *clientStack;
+static DialogUsageManager *clientDum;
 
 class RegListener : public ClientRegistrationHandler {
 public:
@@ -96,6 +100,10 @@ private:
    bool successful;
 };
 
+static JNIEnv *_env;
+static jobject message_handler;
+static jmethodID on_message_method;
+
 class ServerMessageHandler : public ServerPagerMessageHandler
 {
 public:
@@ -108,81 +116,15 @@ public:
 
             Contents *body = message.getContents();
             InfoLog(<< "Got a message: " << *body);
+            
+            jstring _body = _env->NewStringUTF(body->getBodyData().c_str());
+            jstring _sender = _env->NewStringUTF(message.header(h_From).uri().getAor().c_str());
+            
+            _env->CallObjectMethod(message_handler, on_message_method, _sender, _body);
+            
     }
 };
 
-
-int send_message(int argc, const char *argv[], const char* body)
-{
-   AndroidLogger alog;
-   Log::initialize(Log::Cout, Log::Stack, argv[0], alog);
-
-   if( (argc < 6) || (argc > 7) ) {
-      ErrLog(<< "usage: " << argv[0] << " sip:from user passwd realm sip:to [port]\n");
-      return 1;
-   }
-
-   string from(argv[1]);
-   string user(argv[2]);
-   string passwd(argv[3]);
-   string realm(argv[4]);
-   string to(argv[5]);
-   int port = 5060;
-   if(argc == 7)
-   {
-      string temp(argv[6]);
-      istringstream src(temp);
-      src >> port;
-   }
-
-   InfoLog(<< "log: from: " << from << ", to: " << to << ", port: " << port << "\n");
-   InfoLog(<< "user: " << user << ", passwd: " << passwd << ", realm: " << realm << "\n");
-
-   SharedPtr<MasterProfile> profile(new MasterProfile);
-   auto_ptr<ClientAuthManager> clientAuth(new ClientAuthManager());
-
-   SipStack clientStack;
-   DialogUsageManager clientDum(clientStack);
-   clientDum.addTransport(UDP, port);
-   clientDum.setMasterProfile(profile);
-
-   clientDum.setClientAuthManager(clientAuth);
-   clientDum.getMasterProfile()->setDefaultRegistrationTime(70);
-   clientDum.getMasterProfile()->addSupportedMethod(MESSAGE);
-   clientDum.getMasterProfile()->addSupportedMimeType(MESSAGE, Mime("text", "plain"));
-   ClientMessageHandler *cmh = new ClientMessageHandler();
-   clientDum.setClientPagerMessageHandler(cmh);
-
-   NameAddr naFrom(from.c_str());
-   profile->setDefaultFrom(naFrom);
-   profile->setDigestCredential(realm.c_str(), user.c_str(), passwd.c_str());
-
-   InfoLog(<< "Sending MESSAGE\n");
-   NameAddr naTo(to.c_str());
-   ClientPagerMessageHandle cpmh = clientDum.makePagerMessage(naTo);
-
-   Data messageBody(body);
-   auto_ptr<Contents> content(new PlainContents(messageBody));
-   cpmh.get()->page(content);
-
-   // Event loop - stack will invoke callbacks in our app
-   while(!cmh->isFinished())
-   {
-      clientStack.process(100);
-      while(clientDum.process());
-   }
-
-   if(!cmh->isSuccessful())
-   {
-      ErrLog(<< "Message delivery failed, aborting");
-      return 1;
-   }
-
-   return 0;
-}
-
-// Note: this is very crude, it will create a new SIP stack and DUM each
-// time a message needs to be sent
 
 // A proper implementation must keep the SIP stack active as long as the
 // app is running.
@@ -190,42 +132,35 @@ int send_message(int argc, const char *argv[], const char* body)
 #ifdef __cplusplus
 extern "C" {
 #endif
-JNIEXPORT void JNICALL Java_org_resiprocate_android_basicmessage_MessageSender_sendMessage
+JNIEXPORT void JNICALL Java_org_resiprocate_android_basicmessage_SipStack_sendMessage
   (JNIEnv *env, jobject jthis, jstring recipient, jstring body)
 {
    const char *_recipient = env->GetStringUTFChars(recipient, 0);
    const char *_body = env->GetStringUTFChars(body, 0);
    
-   // These should be configured through Android preferences:
-   
-   const char *argv[8];
-   argv[0] = "BasicMessage (JNI)";
-   argv[1] = "sip:anonymous@example.org";
-   argv[2] = "anonymous";
-   argv[3] = "password";
-   argv[4] = "realm";
-   argv[5] = _recipient;
-   
-   // we don't use 5060 in case it clashes with some other app on the phone
-   argv[6] = "5067";
-   
    try {
-   	int rc = send_message(7, argv, _body);
-   } catch (exception& e)
-  {
-    cout << e.what() << endl;
-  }
-  catch(...)
-  {
-    cout << "some exception!" << endl;
-  }
-    
-  env->ReleaseStringUTFChars(recipient, _recipient);
-  env->ReleaseStringUTFChars(body, _body);
-}
 
-static SipStack *clientStack;
-static DialogUsageManager *clientDum;
+      InfoLog(<< "Sending MESSAGE\n");
+      NameAddr naTo(_recipient);
+      ClientPagerMessageHandle cpmh = clientDum->makePagerMessage(naTo);
+
+      Data messageBody(_body);
+      auto_ptr<Contents> content(new PlainContents(messageBody));
+      cpmh.get()->page(content);
+
+   }
+   catch (exception& e)
+   {
+      cout << e.what() << endl;
+   }
+   catch(...)
+   {
+      cout << "some exception!" << endl;
+   }
+    
+   env->ReleaseStringUTFChars(recipient, _recipient);
+   env->ReleaseStringUTFChars(body, _body);
+}
 
 /*
  * Class:     org_resiprocate_android_basicmessage_SipStack
@@ -248,6 +183,8 @@ JNIEXPORT void JNICALL Java_org_resiprocate_android_basicmessage_SipStack_init
    auto_ptr<ClientAuthManager> clientAuth(new ClientAuthManager());
 
    clientStack = new SipStack();
+   // stats service creates timers requiring extra wakeups, so we disable it
+   clientStack->statisticsManagerEnabled() = false;
    clientDum = new DialogUsageManager(*clientStack);
    clientDum->addTransport(TCP, 5065);
    clientDum->setMasterProfile(profile);
@@ -255,7 +192,7 @@ JNIEXPORT void JNICALL Java_org_resiprocate_android_basicmessage_SipStack_init
    clientDum->setClientRegistrationHandler(&client);
 
    clientDum->setClientAuthManager(clientAuth);
-   clientDum->getMasterProfile()->setDefaultRegistrationTime(70);
+   clientDum->getMasterProfile()->setDefaultRegistrationTime(DEFAULT_REGISTRATION_EXPIRY);
    clientDum->getMasterProfile()->addSupportedMethod(MESSAGE);
    clientDum->getMasterProfile()->addSupportedMimeType(MESSAGE, Mime("text", "plain"));
    
@@ -284,11 +221,15 @@ JNIEXPORT void JNICALL Java_org_resiprocate_android_basicmessage_SipStack_init
  * Method:    handleEvents
  * Signature: ()V
  */
-JNIEXPORT void JNICALL Java_org_resiprocate_android_basicmessage_SipStack_handleEvents
-  (JNIEnv *, jobject)
+JNIEXPORT jlong JNICALL Java_org_resiprocate_android_basicmessage_SipStack_handleEvents
+  (JNIEnv *env, jobject)
 {
+   // This is used by callbacks:
+   _env = env;
+
    clientStack->process(10);
    while(clientDum->process());
+   return clientStack->getTimeTillNextProcessMS();
 }
 
 /*
@@ -300,6 +241,25 @@ JNIEXPORT void JNICALL Java_org_resiprocate_android_basicmessage_SipStack_done
   (JNIEnv *, jobject)
 {
    // FIXME: should destroy the stack here
+}
+
+/*
+ * Class:     org_resiprocate_android_basicmessage_SipStack
+ * Method:    setMessageHandler
+ * Signature: (Lorg/resiprocate/android/basicmessage/MessageHandler;)V
+ */
+JNIEXPORT void JNICALL Java_org_resiprocate_android_basicmessage_SipStack_setMessageHandler
+  (JNIEnv *env, jobject _this, jobject _message_handler)
+{
+   message_handler = env->NewGlobalRef(_message_handler);
+   jclass objclass = env->GetObjectClass(_message_handler);
+   on_message_method = env->GetMethodID(objclass, "onMessage", "(Ljava/lang/String;Ljava/lang/String;)V");
+      if(on_message_method == 0){
+          ErrLog( << "could not get method id!\n");
+          return;
+      }
+      
+   
 }
 
 
