@@ -49,18 +49,37 @@ public class MainActivity extends Activity {
 				
 			}
 		});
-		
+				
 		startService(new Intent(SipService.class.getName()));
-		
+
 		bindService(new Intent(SipService.class.getName()),
                 mConnection, Context.BIND_AUTO_CREATE);
-
+		
+	}
+	
+	@Override
+	public void onNewIntent(Intent intent) {
+		super.onNewIntent(intent);
+		Bundle b = intent.getExtras();
+	    if (b != null) {
+	        String sender = b.getString("sender");
+	        if(sender != null)
+	        {
+	        	logger.info("Replying to sender: " + sender);
+	        	EditText recipientField = (EditText)findViewById(R.id.recipient);
+	        	recipientField.setText(sender);
+	        } else {
+	        	logger.info("No sender to reply to");
+	        }
+	    } else {
+	    	logger.info("no extras found in Intent");
+	    }
 	}
 	
 	@Override
 	public void onDestroy() {
 		super.onDestroy();
-		unbindService(mConnection);
+		disconnectService();
 	}
 
 	@Override
@@ -79,7 +98,15 @@ public class MainActivity extends Activity {
             Intent i = new Intent(this, Settings.class);
             startActivity(i);
             break;
- 
+            
+        case R.id.action_exit:
+    		// This tests the DUM and stack shutdown
+    		// Otherwise they just keep running in the background
+        	disconnectService();
+			stopService(new Intent(SipService.class.getName()));
+			// Make the activity screen go away:
+			MainActivity.this.finish();
+			break;
         }
  
         return true;
@@ -99,5 +126,11 @@ public class MainActivity extends Activity {
 	        mSipStackRemote = null;
 	    }
 	};
+	
+	private void disconnectService() {
+		if(mSipStackRemote == null)
+			return;
+		unbindService(mConnection);
+	}
 
 }

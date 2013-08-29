@@ -3,6 +3,7 @@
 
     <string name="app_name">Basic Message</string>
     <string name="action_settings">Settings</string>
+    <string name="action_exit">Exit</string>
     <string name="recipient">Recipient</string>
     <string name="send">Send</string>
     <string name="msg_text">Message body:</string>

@@ -6,6 +6,7 @@
 #include "resip/dum/ClientAuthManager.hxx"
 #include "resip/dum/ClientRegistration.hxx"
 #include "resip/dum/DialogUsageManager.hxx"
+#include "resip/dum/DumShutdownHandler.hxx"
 #include "resip/dum/InviteSessionHandler.hxx"
 #include "resip/dum/MasterProfile.hxx"
 #include "resip/dum/Profile.hxx"
@@ -20,6 +21,7 @@
 #include "resip/dum/RegistrationHandler.hxx"
 #include "resip/dum/PagerMessageHandler.hxx"
 #include "resip/stack/PlainContents.hxx"
+#include "resip/stack/ShutdownMessage.hxx"
 
 #include <iostream>
 #include <string>
@@ -33,6 +35,10 @@ using namespace resip;
 #define RESIPROCATE_SUBSYSTEM Subsystem::TEST
 
 #define DEFAULT_REGISTRATION_EXPIRY 600
+
+#define DEFAULT_UDP_PORT 5068
+#define DEFAULT_TCP_PORT 5068
+#define DEFAULT_TLS_PORT 5069
 
 static SipStack *clientStack;
 static DialogUsageManager *clientDum;
@@ -101,8 +107,8 @@ private:
 };
 
 static JNIEnv *_env;
-static jobject message_handler;
-static jmethodID on_message_method;
+static jobject message_handler = 0;
+static jmethodID on_message_method = 0;
 
 class ServerMessageHandler : public ServerPagerMessageHandler
 {
@@ -116,11 +122,20 @@ public:
 
             Contents *body = message.getContents();
             InfoLog(<< "Got a message: " << *body);
+
+            if(message_handler == 0 || on_message_method == 0)
+            {
+               ErrLog(<< "No MessageHandler has been set, ignoring message");
+               return;
+            }
             
             jstring _body = _env->NewStringUTF(body->getBodyData().c_str());
             jstring _sender = _env->NewStringUTF(message.header(h_From).uri().getAor().c_str());
             
             _env->CallObjectMethod(message_handler, on_message_method, _sender, _body);
+
+            _env->DeleteLocalRef(_sender);
+            _env->DeleteLocalRef(_body);
             
     }
 };
@@ -186,7 +201,12 @@ JNIEXPORT void JNICALL Java_org_resiprocate_android_basicmessage_SipStack_init
    // stats service creates timers requiring extra wakeups, so we disable it
    clientStack->statisticsManagerEnabled() = false;
    clientDum = new DialogUsageManager(*clientStack);
-   clientDum->addTransport(TCP, 5065);
+
+   // Enable all the common transports:
+   //clientDum->addTransport(UDP, DEFAULT_UDP_PORT);
+   clientDum->addTransport(TCP, DEFAULT_TCP_PORT);
+   //clientDum->addTransport(TLS, DEFAULT_TLS_PORT);
+
    clientDum->setMasterProfile(profile);
    
    clientDum->setClientRegistrationHandler(&client);
@@ -232,15 +252,62 @@ JNIEXPORT jlong JNICALL Java_org_resiprocate_android_basicmessage_SipStack_handl
    return clientStack->getTimeTillNextProcessMS();
 }
 
+class MyShutdownHandler : public DumShutdownHandler
+{
+   public:
+      MyShutdownHandler() : mShutdown(false) { }
+      virtual ~MyShutdownHandler(){} 
+
+      bool isShutdown() { return mShutdown; }
+      virtual void onDumCanBeDeleted() 
+      {
+         InfoLog( << "onDumCanBeDeleted was called");
+         mShutdown = true;
+      }
+   private:
+      volatile bool mShutdown;
+};
+
 /*
  * Class:     org_resiprocate_android_basicmessage_SipStack
  * Method:    done
  * Signature: ()V
  */
 JNIEXPORT void JNICALL Java_org_resiprocate_android_basicmessage_SipStack_done
-  (JNIEnv *, jobject)
+  (JNIEnv *env, jobject)
 {
-   // FIXME: should destroy the stack here
+   // May be used in some callbacks during shutdown:
+   _env = env;
+
+   MyShutdownHandler mDumShutdown;
+   clientDum->shutdown(&mDumShutdown);
+   while(!mDumShutdown.isShutdown())
+   {
+      clientStack->process(10);
+      while(clientDum->process());
+   }
+   delete clientDum;
+
+   InfoLog(<<"DUM shutdown OK, now for the stack");
+
+   clientStack->shutdown();
+   ShutdownMessage *shutdownFinished = 0;
+   while(shutdownFinished == 0)
+   {
+      clientStack->process(10);
+      Message *msg = clientStack->receiveAny();
+      shutdownFinished = dynamic_cast<ShutdownMessage*>(msg);
+      delete msg;
+   }
+
+   delete clientStack;
+   InfoLog(<<"Stack shutdown OK");
+
+   // Remove these last, they may be called during shutdown
+   if(message_handler != 0)
+   {
+      env->DeleteGlobalRef(message_handler);
+   }
 }
 
 /*

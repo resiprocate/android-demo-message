@@ -14,6 +14,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -164,21 +165,26 @@ public class SipService extends Service {
 			
 			// Make a notification - one of the less elegant things
 			// to do in Android programming
+			Uri soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
 			NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 			int icon = R.drawable.ic_launcher;
-			CharSequence notiText = body;
 			long ts = System.currentTimeMillis();
-			Notification notification = new Notification(icon, notiText, ts);
-
-			Context context = getApplicationContext();
-			CharSequence contentTitle = "SIP message";
-			CharSequence contentText = body;
+			
 			Intent notificationIntent = new Intent(SipService.this, MainActivity.class);
+			notificationIntent.putExtra("sender", sender);
 			PendingIntent contentIntent = PendingIntent.getActivity(SipService.this, 0,
-					notificationIntent, 0);
+					notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 
-			notification.setLatestEventInfo(context, contentTitle, contentText,
-					contentIntent);
+			Notification.Builder mBuilder = new Notification.Builder(getApplicationContext())
+				.setWhen(ts)
+	        	.setSmallIcon(icon)
+	        	.setContentIntent(contentIntent)
+	        	.setContentTitle("SIP From: " + sender)
+	        	.setContentText(body)
+	        	.setTicker(body)
+	        	.setSound(soundUri);
+			
+			Notification notification = mBuilder.getNotification();
 
 			int SERVER_DATA_RECEIVED = 1;
 			notificationManager.notify(SERVER_DATA_RECEIVED, notification);
