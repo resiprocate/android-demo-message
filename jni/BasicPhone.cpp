@@ -27,7 +27,7 @@
 #include <string>
 #include <sstream>
 
-#include "org_resiprocate_android_basicmessage_SipStack.h"
+#include <jni.h>
 
 using namespace std;
 using namespace resip;
@@ -91,7 +91,7 @@ public:
       finished = true;
    }
 
-   virtual void onFailure(ClientPagerMessageHandle, const SipMessage& status, std::auto_ptr<Contents> contents)
+   virtual void onFailure(ClientPagerMessageHandle, const SipMessage& status, std::unique_ptr<Contents> contents)
    {
       ErrLog(<<"ClientMessageHandler::onFailure\n");
       successful = false;
@@ -117,7 +117,7 @@ public:
         virtual void onMessageArrived(ServerPagerMessageHandle handle, const SipMessage& message)
     {
 
-            SharedPtr<SipMessage> ok = handle->accept();
+            std::shared_ptr<SipMessage> ok = handle->accept();
             handle->send(ok);
 
             Contents *body = message.getContents();
@@ -160,8 +160,8 @@ JNIEXPORT void JNICALL Java_org_resiprocate_android_basicmessage_SipStack_sendMe
       ClientPagerMessageHandle cpmh = clientDum->makePagerMessage(naTo);
 
       Data messageBody(_body);
-      auto_ptr<Contents> content(new PlainContents(messageBody));
-      cpmh.get()->page(content);
+      std::unique_ptr<Contents> content(new PlainContents(messageBody));
+      cpmh.get()->page(std::move(content));
 
    }
    catch (exception& e)
@@ -194,8 +194,8 @@ JNIEXPORT void JNICALL Java_org_resiprocate_android_basicmessage_SipStack_init
    Log::initialize(Log::Cout, Log::Stack, "SIP", alog);
    
    RegListener client;
-   SharedPtr<MasterProfile> profile(new MasterProfile);
-   auto_ptr<ClientAuthManager> clientAuth(new ClientAuthManager());
+   std::shared_ptr<MasterProfile> profile(new MasterProfile);
+   std::unique_ptr<ClientAuthManager> clientAuth(new ClientAuthManager());
 
    clientStack = new SipStack();
    // stats service creates timers requiring extra wakeups, so we disable it
@@ -203,15 +203,15 @@ JNIEXPORT void JNICALL Java_org_resiprocate_android_basicmessage_SipStack_init
    clientDum = new DialogUsageManager(*clientStack);
 
    // Enable all the common transports:
-   //clientDum->addTransport(UDP, DEFAULT_UDP_PORT);
-   clientDum->addTransport(TCP, DEFAULT_TCP_PORT);
-   //clientDum->addTransport(TLS, DEFAULT_TLS_PORT);
+   clientStack->addTransport(UDP, DEFAULT_UDP_PORT);
+   //clientStack->addTransport(TCP, DEFAULT_TCP_PORT);
+   //clientStack->addTransport(TLS, DEFAULT_TLS_PORT);
 
    clientDum->setMasterProfile(profile);
    
    clientDum->setClientRegistrationHandler(&client);
 
-   clientDum->setClientAuthManager(clientAuth);
+   clientDum->setClientAuthManager(std::move(clientAuth));
    clientDum->getMasterProfile()->setDefaultRegistrationTime(DEFAULT_REGISTRATION_EXPIRY);
    clientDum->getMasterProfile()->addSupportedMethod(MESSAGE);
    clientDum->getMasterProfile()->addSupportedMimeType(MESSAGE, Mime("text", "plain"));
@@ -226,7 +226,7 @@ JNIEXPORT void JNICALL Java_org_resiprocate_android_basicmessage_SipStack_init
    profile->setDefaultFrom(naFrom);
    profile->setDigestCredential(_realm, _user, _password);
    
-   SharedPtr<SipMessage> regMessage = clientDum->makeRegistration(naFrom);
+   std::shared_ptr<SipMessage> regMessage = clientDum->makeRegistration(naFrom);
    clientDum->send( regMessage );
    
    env->ReleaseStringUTFChars(sipUser, _sipUser);

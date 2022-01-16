@@ -2,35 +2,34 @@
 This is a basic Android app demonstrating how to use reSIProcate on
 Android.  It sends a text message using the SIP MESSAGE method.
 
-You must have the Android SDK and the NDK
+You must have the Android SDK, the NDK and a recent version of Gradle.
 
-You must have already built the reSIProcate libs for Android, use
-build/android-custom-ndk script from the reSIProcate tree.
+1. Checkout the reSIProcate ndkports fork and this demo from git:
 
-1. Checkout from git:
-
+      git clone https://github.com/resiprocate/resiprocate.git
+      git clone https://github.com/resiprocate/ndkports.git
       git clone https://github.com/resiprocate/android-demo-message.git
-      cd android-demo-message
 
-2. Create transient files:
+2. Put a reSIProcate tarball into /tmp
 
-      android update project -p . -t android-14
-      mkdir gen
+      cd resiprocate
+      build/release-tarball.sh
+      cp resiprocate-1.13.0~alpha1.tar.gz /tmp/reSIProcate-snapshot.tar.gz
 
-3. Compile the Java class files
+3. Build AAR files for OpenSSL and reSIProcate in ndkports:
 
-   * You can compile with ant or by importing the project into Eclipse
+      cd ../ndkports
+      git checkout pocock/resiprocate
+      gradle -PndkPath=/home/daniel/Android/Sdk/ndk/23.1.7779620 release -x test
 
-4. Run build-jni.sh
+4. Build android-demo-message:
 
-   * the shared objects should now be under the libs directory
-   * if you are using Eclipse, press F5 to detect the new files
+      cd ../android-demo-message
+      gradle assembleDebug
 
-5. Build an APK file (e.g. use Export Android Application in Eclipse)
+5. Deploy the APK file to a phone,
 
-6. Deploy the APK file to a phone,
-
-   adb install BasicMessage.apk
+   adb install ./build/outputs/apk/debug/android-demo-message-debug.apk
 
 Now you have an app that you can run on Android
 
@@ -45,10 +44,11 @@ Notes:
 * it binds to a fixed source port defined in the code, hopefully
   this won't clash with a port in use by any other app
 * reSIProcate's logging messages are logged to the Android
-  logging facility and they can be monitoring with logcat
+  logging facility and they can be monitoring with `adb logcat`
 
 http://www.resiprocate.org
 
-Copyright (C) 2013 Daniel Pocock
-http://danielpocock.com  <daniel@pocock.com.au>
+Copyright (C) 2013-2022 Daniel Pocock
+https://danielpocock.com  <daniel@pocock.com>
+https://softwarefreedom.institute
 

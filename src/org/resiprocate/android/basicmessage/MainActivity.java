@@ -50,9 +50,11 @@ public class MainActivity extends Activity {
 			}
 		});
 				
-		startService(new Intent(SipService.class.getName()));
+		Intent intent = new Intent(this, SipService.class);
+		intent.setPackage("org.resiprocate.android.basicmessage");
+		startService(intent);
 
-		bindService(new Intent(SipService.class.getName()),
+		bindService(intent,
                 mConnection, Context.BIND_AUTO_CREATE);
 		
 	}

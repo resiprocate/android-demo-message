@@ -35,13 +35,13 @@ public class SipService extends Service {
 	String mSipPassword;
 
 	public SipService() {
-		System.loadLibrary("gnustl_shared");
+		System.loadLibrary("c++_shared");
 		System.loadLibrary("crypto");
 		System.loadLibrary("ssl");
-		System.loadLibrary("resipares-1.9");
-		System.loadLibrary("rutil-1.9");
-		System.loadLibrary("resip-1.9");
-		System.loadLibrary("dum-1.9");
+		System.loadLibrary("resipares");
+		System.loadLibrary("rutil");
+		System.loadLibrary("resip");
+		System.loadLibrary("dum");
 		System.loadLibrary("BasicPhone");
 	}
 
