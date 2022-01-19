@@ -190,8 +190,8 @@ JNIEXPORT void JNICALL Java_org_resiprocate_android_basicmessage_SipStack_init
    const char *_user = env->GetStringUTFChars(user, 0);
    const char *_password = env->GetStringUTFChars(password, 0);
 
-   AndroidLogger alog;
-   Log::initialize(Log::Cout, Log::Stack, "SIP", alog);
+   AndroidLogger *alog = new AndroidLogger();
+   Log::initialize(Log::Cout, Log::Stack, "SIP", *alog);
    
    RegListener client;
    std::shared_ptr<MasterProfile> profile(new MasterProfile);
