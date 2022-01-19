@@ -25,6 +25,10 @@ android {
         }
     }
 
+    packagingOptions {
+        doNotStrip '*/*/*.so'
+    }
+
     compileSdkVersion 30
     buildToolsVersion "30.0.3"
     ndkVersion "23.1.7779620"

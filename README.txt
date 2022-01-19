@@ -46,6 +46,67 @@ Notes:
 * reSIProcate's logging messages are logged to the Android
   logging facility and they can be monitoring with `adb logcat`
 
+Debugging tips
+--------------
+
+As this is a demo app, AndroidManifest.xml includes debuggable=true.
+Remove that for production use.
+
+For debugging the JNI / C++ code at runtime on the phone:
+
+Make sure the dependencies in the AAR files are not stripped or
+optimized.  At the time of writing this, ndkports build system
+doesn't appear to be stripping the libraries.
+ndkports/resiprocate/build.gradle.kts includes CXXFLAGS
+for (de-)optimization.
+
+In the android-demo-message build.gradle file, make sure the doNotStrip
+option is not commented.
+
+After building the APK, you may want to unpack it with the jar command
+and verify that each shared object is unstripped.  E.g:
+
+    mkdir foo
+    cd foo
+    jar xf ../build/outputs/apk/debug/android-demo-message-debug.apk
+    file lib/*/*.so
+
+The correct output looks like this:
+
+    lib/arm64-v8a/libresip.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, with debug_info, not stripped
+
+To use gdbserver on any arbitrary process in the phone, you need to
+root your phone.
+
+In this demo, we run the reSIProcate code as an Android Service.  Android
+runs a Service in a separate process with a distinct PID.
+
+In this example, the process 12790 is the Service:
+
+134|hlte:/ # ps | grep basicmessage
+u0_a85    12238 376   1023828 52544 sys_epoll_ b5904054 S org.resiprocate.android.basicmessage
+u0_a85    12790 376   989340 45252 sys_epoll_ b5904054 S org.resiprocate.android.basicmessage:remote
+
+Use a command like this to run gdbserver in the phone:
+
+hlte:/ # gdbserver --attach :5045 `ps | grep basicmessage:remote \
+              | tr -s ' ' | cut -f2 -d' '`
+
+On the development workstation, set up port 5045:
+
+    adb forward tcp:5045 tcp:5045
+
+Now you can run the gdb distributed in the NDK:
+
+    ${ANDROID_NDK_HOME}/prebuilt/linux-x86_64/bin/gdb
+
+In the gdb session:
+
+    (gdb)  target remote :5045
+    Remote debugging using :5045
+
+
+
 http://www.resiprocate.org
 
 Copyright (C) 2013-2022 Daniel Pocock
